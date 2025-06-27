@@ -11,7 +11,7 @@ void config_USART(void){
 
 void enviar_char(char c){
   while(!(UCSR0A&(1<<UDRE0)));
-  UDR0=c;
+  UDR0=c; 
 }
 
 void enviar_texto(const char* texto){
@@ -53,8 +53,10 @@ float temp_deseada(float volt){
 }
 
 float temp_medida(float volt){
-  return 20.0+(volt-1.0)*32.5;//1V=20°C, 5V=150°C (PT100)
+  return 50 * volt - 100;
 }
+
+
 
 void config_timer(void){
   TCCR0A|=(1<<WGM01);
