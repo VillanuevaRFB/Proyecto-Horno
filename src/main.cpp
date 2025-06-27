@@ -2,34 +2,55 @@
 #include <avr/io.h>
 #include <util/delay.h>
 #include <avr/interrupt.h>
-
+char c=0;
 void config_USART(void){
   UBRR0=103;//9600 baudios
   UCSR0B|=(1<<TXEN0);
   UCSR0C|=(1<<UCSZ01)|(1<<UCSZ00);
 }
 
-void enviar_char(char c){
-  while(!(UCSR0A&(1<<UDRE0)));
-  UDR0=c; 
-}
+//void enviar_char(char c){
+ // while(!(UCSR0A&(1<<UDRE0)));
+ // UDR0=c; 
+//}
 
 void enviar_texto(const char* texto){
   while(*texto){
-    enviar_char(*texto++);
+    //enviar_char(*texto++);
+    c=*texto++;
+    UCSR0B|=(1<<UDRIE0);
+    
+     
+     _delay_ms(10);
+    
   }
+  
 }
-
+ISR(USART_UDRE_vect){
+  UDR0=c;
+  UCSR0B&=~(1<<UDRIE0);
+}
 void float_a_texto(float valor){
   int parte_entera=(int)valor;
   int parte_decimal=(int)((valor-parte_entera)*10);
-
-  if(parte_entera>=100) enviar_char('0'+(parte_entera/100));
-  if(parte_entera>=10) enviar_char('0'+((parte_entera/10)%10));
-  else enviar_char('0');
-  enviar_char('0'+(parte_entera%10));
-  enviar_char('.');
-  enviar_char('0'+parte_decimal);
+  UCSR0B|=(1<<UDRIE0);
+  if(parte_entera>=100) c='0'+(parte_entera/100);
+  if(parte_entera>=10) c=('0'+((parte_entera/10)%10));
+  else c=('0');
+  UCSR0B&=~(1<<UDRIE0);
+  _delay_ms(10);
+  UCSR0B|=(1<<UDRIE0);
+  c=('0'+(parte_entera%10));
+  UCSR0B&=~(1<<UDRIE0);
+  _delay_ms(10);
+  UCSR0B|=(1<<UDRIE0);
+  c=('.');
+  UCSR0B&=~(1<<UDRIE0);
+  _delay_ms(10);
+  UCSR0B|=(1<<UDRIE0);
+  c=('0'+parte_decimal);
+  UCSR0B&=~(1<<UDRIE0);
+  _delay_ms(10);
 }
 
 void config_ADC(void){
@@ -56,11 +77,9 @@ float temp_medida(float volt){
   return 50 * volt - 100;
 }
 
-
-
 void config_timer(void){
   TCCR0A|=(1<<WGM01);
-  TCCR0B|=(1<<CS01);
+  TCCR0B|=(1<<CS02)|(1<<CS00);
 }
 
 void regulador(void){
@@ -70,48 +89,49 @@ void regulador(void){
   TIFR0|=(1<<OCF0A);
 }
 
-unsigned char b=50;
+unsigned char error=0;
 
-void pwm(unsigned char brillo){
-  PORTB|=0x01;
-  for(int i=0; i<100+brillo; i++)regulador();
-  PORTB&=~0x01;
-  for(int i=0; i<1900-brillo; i++)regulador();
-}
 
-void config(void){
-  EICRA|=(1<<ISC00)|(1<<ISC01); //Se activa con el flanco de bajada
+
+void config_intext(void){
   EIMSK|=(1<<INT0);
-  DDRD&=~(0X04);
+  EICRA|=(1<<ISC01);
+  DDRD&=~(1<<PD2);
 }
 
-int a=0;
 ISR(INT0_vect){
-  if (a>60){
-    a=0;
-    PORTB^=0x01;
-   }
- a++;
+  PORTB|=0x01;
+  TCNT0=0;
+  TCCR0B|=(1<<CS02)|(1<<CS00);
+  while(!(TIFR0&(1<<OCF0A)));
+  TIFR0|=(1<<OCF0A);
+  PORTB&=~0x01;
+  TCCR0B&=~((1<<CS02)|(1<<CS00));
+  
 }
+
 
 int main(void){
   DDRB|=(1<<PB0);//PB0 como salida (foco)
   config_USART();
   config_ADC();
   config_timer();
-
+  config_intext();
+  sei();
   while(1){
     float volt_deseada=voltaje_ADC(leer_ADC(0));//PC0=potenciómetro
     float volt_medida=voltaje_ADC(leer_ADC(1));//PC1=PT100
     float temp_ref=temp_deseada(volt_deseada);
     float temp_pt=temp_medida(volt_medida);
-
-    pwm(b);//control del foco
+    OCR0A=125;
+   
     enviar_texto("Deseada:");
     float_a_texto(temp_ref);
     enviar_texto("C | Medida:");
     float_a_texto(temp_pt);
     enviar_texto("C\r\n");
-    _delay_ms(100);//tiempo envio
+    
+  
+    
   }
 }
