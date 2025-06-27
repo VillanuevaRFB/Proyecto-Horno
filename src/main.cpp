@@ -12,7 +12,7 @@ void configtimer_2(void){
 }
 
 volatile unsigned long time_ms=0;
-volatile float mostrar_ms=0;
+volatile float mostrar_ms_seg=0;
 
 ISR(TIMER2_COMPA_vect){
   time_ms++;
@@ -48,6 +48,7 @@ void float_a_texto(float valor){
   int parte_decimal=(int)((valor-parte_entera)*10);
   UCSR0B|=(1<<UDRIE0);
   if(parte_entera>=100) c='0'+(parte_entera/100);
+   UCSR0B|=(1<<UDRIE0);
   if(parte_entera>=10) c=('0'+((parte_entera/10)%10));
   else c=('0');
   UCSR0B&=~(1<<UDRIE0);
@@ -102,8 +103,6 @@ void regulador(void){
   TIFR0|=(1<<OCF0A);
 }
 
-unsigned char error=0;
-
 void config_intext(void){
   EIMSK|=(1<<INT0);
   EICRA|=(1<<ISC01);
@@ -118,10 +117,7 @@ ISR(INT0_vect){
   TIFR0|=(1<<OCF0A);
   PORTB&=~0x01;
   TCCR0B&=~((1<<CS02)|(1<<CS00));
-
-
   UCSR0B|=(1<<UDRIE0);
-
 }
 
 
@@ -135,21 +131,32 @@ int main(void){
   configtimer_2();
   sei();
   while(1){
-    mostrar_ms=time_ms;
+    mostrar_ms_seg=time_ms;
     time_ms=0;
     float volt_deseada=voltaje_ADC(leer_ADC(0));//PC0=potenciómetro
     float volt_medida=voltaje_ADC(leer_ADC(1));//PC1=PT100
     float temp_ref=temp_deseada(volt_deseada);
     float temp_pt=temp_medida(volt_medida);
     OCR0A=125;
-    
+
+    float error_ant=0;
+    float kp=1;
+    float kd=1;
+    float ki=1;
+    float integral=0;
+
+    float error=temp_ref-temp_pt; integral+=error;
+    float u=kp*error+kd*(error-error_ant)/mostrar_ms_seg +ki*integral*mostrar_ms_seg;
+    error_ant=error;
     enviar_texto("Deseada:");
     float_a_texto(temp_ref);
     enviar_texto("C | Medida:");
     float_a_texto(temp_pt);
     enviar_texto("C | Tiempo:");
-    float_a_texto(mostrar_ms);
-    enviar_texto("ms\r\n");
+    float_a_texto(mostrar_ms_seg);
+    enviar_texto("ms | int:");
+    float_a_texto(u);
+    enviar_texto("\r\n");
    
   }
 }
