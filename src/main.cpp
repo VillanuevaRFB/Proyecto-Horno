@@ -3,6 +3,22 @@
 #include <util/delay.h>
 #include <avr/interrupt.h>
 char c=0;
+
+void configtimer_2(void){
+  TCCR2A|=(1<<WGM21);
+  TCCR2B|=(1<<CS22);
+  TIMSK2|=(1<<OCIE2A);
+  OCR2A=250;
+}
+
+volatile unsigned long time_ms=0;
+volatile float mostrar_ms=0;
+
+ISR(TIMER2_COMPA_vect){
+  time_ms++;
+  TCNT2=0;
+}
+
 void config_USART(void){
   UBRR0=103;//9600 baudios
   UCSR0B|=(1<<TXEN0);
@@ -18,14 +34,11 @@ void enviar_texto(const char* texto){
   while(*texto){
     //enviar_char(*texto++);
     c=*texto++;
-    UCSR0B|=(1<<UDRIE0);
-    
-     
+    UCSR0B|=(1<<UDRIE0);    
      _delay_ms(10);
-    
   }
-  
 }
+
 ISR(USART_UDRE_vect){
   UDR0=c;
   UCSR0B&=~(1<<UDRIE0);
@@ -91,8 +104,6 @@ void regulador(void){
 
 unsigned char error=0;
 
-
-
 void config_intext(void){
   EIMSK|=(1<<INT0);
   EICRA|=(1<<ISC01);
@@ -107,8 +118,12 @@ ISR(INT0_vect){
   TIFR0|=(1<<OCF0A);
   PORTB&=~0x01;
   TCCR0B&=~((1<<CS02)|(1<<CS00));
-  
+
+
+  UCSR0B|=(1<<UDRIE0);
+
 }
+
 
 
 int main(void){
@@ -117,21 +132,24 @@ int main(void){
   config_ADC();
   config_timer();
   config_intext();
+  configtimer_2();
   sei();
   while(1){
+    mostrar_ms=time_ms;
+    time_ms=0;
     float volt_deseada=voltaje_ADC(leer_ADC(0));//PC0=potenciómetro
     float volt_medida=voltaje_ADC(leer_ADC(1));//PC1=PT100
     float temp_ref=temp_deseada(volt_deseada);
     float temp_pt=temp_medida(volt_medida);
     OCR0A=125;
-   
+    
     enviar_texto("Deseada:");
     float_a_texto(temp_ref);
     enviar_texto("C | Medida:");
     float_a_texto(temp_pt);
-    enviar_texto("C\r\n");
-    
-  
-    
+    enviar_texto("C | Tiempo:");
+    float_a_texto(mostrar_ms);
+    enviar_texto("ms\r\n");
+   
   }
 }
