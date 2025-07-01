@@ -4,7 +4,7 @@
 #include <avr/interrupt.h>
 char c=0;
 
-void configtimer_2(void){ //
+void configtimer_2(void){ // para el pid
   TCCR2A|=(1<<WGM21);
   TCCR2B|=(1<<CS22);
   TIMSK2|=(1<<OCIE2A);
@@ -12,7 +12,7 @@ void configtimer_2(void){ //
 }
 
 volatile unsigned long time_ms=0;
-volatile float mostrar_ms_seg=0;
+volatile float dt=0;
 
 ISR(TIMER2_COMPA_vect){
   time_ms++;
@@ -52,22 +52,23 @@ void float_a_texto(float valor){
   if(parte_entera>=10) c=('0'+((parte_entera/10)%10));
   else c=('0');
   UCSR0B&=~(1<<UDRIE0);
-  _delay_ms(10);
+  _delay_ms(8);
   UCSR0B|=(1<<UDRIE0);
   c=('0'+(parte_entera%10));
   UCSR0B&=~(1<<UDRIE0);
-  _delay_ms(10);
+  _delay_ms(8);
   UCSR0B|=(1<<UDRIE0);
   c=('.');
   UCSR0B&=~(1<<UDRIE0);
-  _delay_ms(10);
+  _delay_ms(8);
   UCSR0B|=(1<<UDRIE0);
   c=('0'+parte_decimal);
   UCSR0B&=~(1<<UDRIE0);
-  _delay_ms(10);
+  _delay_ms(8);
+  UCSR0B|=(1<<UDRIE0);
 }
 
-void config_ADC(void){
+void config_ADC(void){ //para potenciometro
   ADMUX|=(1<<REFS0);
   ADCSRA|=(1<<ADEN)|(1<<ADPS2);
 }
@@ -88,7 +89,7 @@ float temp_deseada(float volt){
 }
 
 float temp_medida(float volt){
-  return 50 * volt - 100;
+  return 50*volt-100;
 }
 
 void config_timer(void){
@@ -103,7 +104,7 @@ void regulador(void){
   TIFR0|=(1<<OCF0A);
 }
 
-void config_intext(void){
+void config_intext(void){ //del foco
   EIMSK|=(1<<INT0);
   EICRA|=(1<<ISC01);
   DDRD&=~(1<<PD2);
@@ -120,8 +121,6 @@ ISR(INT0_vect){
   UCSR0B|=(1<<UDRIE0);
 }
 
-
-
 int main(void){
   DDRB|=(1<<PB0);//PB0 como salida (foco)
   config_USART();
@@ -131,7 +130,7 @@ int main(void){
   configtimer_2();
   sei();
   while(1){
-    mostrar_ms_seg=time_ms/1000;
+    dt=time_ms/1000.0;
     time_ms=0;
     float volt_deseada=voltaje_ADC(leer_ADC(0));//PC0=potenciómetro
     float volt_medida=voltaje_ADC(leer_ADC(1));//PC1=PT100
@@ -144,17 +143,27 @@ int main(void){
     float kd=1;
     float ki=1;
     float integral=0;
-
+    float derivada=0;
     float error=temp_ref-temp_pt; integral+=error;
-    float u=kp*error+kd*(error-error_ant)/mostrar_ms_seg +ki*integral*mostrar_ms_seg;
+    if(dt==0){
+      derivada=0;
+    }
+    else{
+      derivada=(error-error_ant)/dt;
+    }
+
+    float u=kp*error+kd*derivada+ki*integral*dt;
     error_ant=error;
+    if(u<=0){
+      u=0;
+    }
     enviar_texto("Deseada:");
     float_a_texto(temp_ref);
     enviar_texto("C | Medida:");
     float_a_texto(temp_pt);
     enviar_texto("C | Tiempo:");
-    float_a_texto(mostrar_ms_seg);
-    enviar_texto("ms | int:");
+    float_a_texto(dt);
+    enviar_texto("seg | PID:");
     float_a_texto(u);
     enviar_texto("\r\n");
    
