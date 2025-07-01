@@ -4,7 +4,7 @@
 #include <avr/interrupt.h>
 char c=0;
 
-void configtimer_2(void){
+void configtimer_2(void){ //
   TCCR2A|=(1<<WGM21);
   TCCR2B|=(1<<CS22);
   TIMSK2|=(1<<OCIE2A);
@@ -131,7 +131,7 @@ int main(void){
   configtimer_2();
   sei();
   while(1){
-    mostrar_ms_seg=time_ms;
+    mostrar_ms_seg=time_ms/1000;
     time_ms=0;
     float volt_deseada=voltaje_ADC(leer_ADC(0));//PC0=potenciómetro
     float volt_medida=voltaje_ADC(leer_ADC(1));//PC1=PT100
