@@ -136,7 +136,6 @@ int main(void){
     float volt_medida=voltaje_ADC(leer_ADC(1));//PC1=PT100
     float temp_ref=temp_deseada(volt_deseada);
     float temp_pt=temp_medida(volt_medida);
-    OCR0A=125;
 
     float error_ant=0;
     float kp=1;
@@ -157,6 +156,13 @@ int main(void){
     if(u<=0){
       u=0;
     }
+
+    float uf=u;
+    if(uf>255){
+      uf=255;
+    }
+    OCR0A=(unsigned char)(uf);
+    
     enviar_texto("Deseada:");
     float_a_texto(temp_ref);
     enviar_texto("C | Medida:");
@@ -165,7 +171,8 @@ int main(void){
     float_a_texto(dt);
     enviar_texto("seg | PID:");
     float_a_texto(u);
+    enviar_texto(" | foco:");
+    float_a_texto(uf);
     enviar_texto("\r\n");
-   
   }
 }
